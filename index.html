@@ -41,7 +41,6 @@
             max-width: 500px;
             width: 100%;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            position: relative;
         }
         
         .header {
@@ -66,7 +65,6 @@
             border-radius: 20px;
             font-size: 11px;
             font-weight: bold;
-            letter-spacing: 0.5px;
         }
         
         .time-display {
@@ -139,10 +137,6 @@
             background: #ff6b6b;
             color: white;
             box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
-        }
-        
-        .btn-danger:hover {
-            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
         }
         
         .btn-block {
@@ -388,7 +382,7 @@
             margin: 8px 0;
         }
         
-        .edu-card ul, .edu-card ol {
+        .edu-card ol {
             line-height: 2;
             padding-left: 20px;
             color: #495057;
@@ -656,7 +650,7 @@
         let alarmInterval = null;
         let ringingAlarmId = null;
         let syncChannel = null;
-        let autoStopTimeout = null; // ⭐ Track auto-stop timeout
+        let autoStopTimeout = null;
         
         // ============================================================
         // 2. SET, DELETE, CHECK ALARMS
@@ -683,38 +677,38 @@
                 triggered: false,
                 missed: false,
                 createdAt: now.toISOString(),
-                deviceId: deviceId,
-                label: dateTime.toLocaleString()
+                deviceId: deviceId
             };
             
             alarms.push(alarm);
             saveAlarms();
-            updateStatus(`✅ Alarm set for ${formatTime(dateTime)}`, 'active');
+            updateStatus('✅ Alarm set for ' + formatTime(dateTime), 'active');
             input.value = '';
             if (navigator.vibrate) navigator.vibrate(50);
         }
         
         function deleteAlarm(id) {
-            alarms = alarms.filter(a => a.id !== id);
+            alarms = alarms.filter(function(a) { return a.id !== id; });
             saveAlarms();
             if (navigator.vibrate) navigator.vibrate(30);
             
-            const status = document.getElementById('status');
-            if (status.textContent.includes('🔔 RINGING')) {
+            var status = document.getElementById('status');
+            if (status.textContent.indexOf('🔔 RINGING') !== -1) {
                 stopAlarm();
             }
         }
         
         function checkAlarms() {
-            const now = new Date();
-            let anyRinging = false;
-            let anyMissed = false;
+            var now = new Date();
+            var anyRinging = false;
+            var anyMissed = false;
             
-            alarms.forEach(alarm => {
-                const alarmTime = new Date(alarm.time);
+            for (var i = 0; i < alarms.length; i++) {
+                var alarm = alarms[i];
+                var alarmTime = new Date(alarm.time);
                 
                 if (alarmTime <= now && !alarm.triggered && !alarm.missed) {
-                    const diffMs = now - alarmTime;
+                    var diffMs = now - alarmTime;
                     if (diffMs <= 60000) {
                         alarm.triggered = true;
                         saveAlarms();
@@ -723,19 +717,27 @@
                     } else {
                         alarm.missed = true;
                         saveAlarms();
-                        updateStatus(`❌ Alarm missed! (${formatTime(alarmTime)})`, 'missed');
+                        updateStatus('❌ Alarm missed! (' + formatTime(alarmTime) + ')', 'missed');
                         anyMissed = true;
                     }
                 }
-            });
+            }
             
             if (!anyRinging && !anyMissed) {
-                const pending = alarms.filter(a => !a.triggered && !a.missed);
+                var pending = [];
+                for (var j = 0; j < alarms.length; j++) {
+                    if (!alarms[j].triggered && !alarms[j].missed) {
+                        pending.push(alarms[j]);
+                    }
+                }
                 if (pending.length > 0) {
-                    const next = pending.sort((a,b) => new Date(a.time) - new Date(b.time))[0];
-                    const diff = Math.floor((new Date(next.time) - now) / 1000);
+                    pending.sort(function(a, b) {
+                        return new Date(a.time) - new Date(b.time);
+                    });
+                    var next = pending[0];
+                    var diff = Math.floor((new Date(next.time) - now) / 1000);
                     if (diff > 0 && diff < 3600) {
-                        updateStatus(`⏳ Next alarm in ${Math.floor(diff/60)}m ${diff%60}s`, 'active');
+                        updateStatus('⏳ Next alarm in ' + Math.floor(diff/60) + 'm ' + (diff%60) + 's', 'active');
                     }
                 }
             }
@@ -744,11 +746,13 @@
         }
         
         function formatTime(date) {
-            return date.toLocaleTimeString('en-US', {
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-            });
+            var hours = date.getHours();
+            var minutes = date.getMinutes();
+            var ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            return hours + ':' + minutes + ' ' + ampm;
         }
         
         setInterval(checkAlarms, 1000);
@@ -759,13 +763,13 @@
         
         function triggerAlarm(alarm) {
             ringingAlarmId = alarm.id;
-            const time = new Date(alarm.time);
-            const timeStr = formatTime(time);
+            var time = new Date(alarm.time);
+            var timeStr = formatTime(time);
             
             // Notification
             if ('Notification' in window && Notification.permission === 'granted') {
                 new Notification('🔔 ALARM!', {
-                    body: `Time to wake up! (${timeStr})`,
+                    body: 'Time to wake up! (' + timeStr + ')',
                     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>',
                     tag: 'alarm',
                     requireInteraction: true
@@ -781,32 +785,31 @@
             }
             
             // UI
-            updateStatus(`🔔 RINGING! ${timeStr}`, 'ringing');
+            updateStatus('🔔 RINGING! ' + timeStr, 'ringing');
             addStopButton();
             
             // Speak
             if ('speechSynthesis' in window) {
-                const msg = new SpeechSynthesisUtterance(`Alarm! It's ${timeStr}`);
+                var msg = new SpeechSynthesisUtterance('Alarm! It\'s ' + timeStr);
                 msg.rate = 0.9;
                 speechSynthesis.speak(msg);
             }
             
-            // ⭐ AUTO-STOP after 1 minute (60 seconds)
-            // Clear any existing timeout
+            // AUTO-STOP after 1 minute (60 seconds)
             if (autoStopTimeout) {
                 clearTimeout(autoStopTimeout);
                 autoStopTimeout = null;
             }
             
-            autoStopTimeout = setTimeout(() => {
-                // Only stop if still ringing
-                if (document.getElementById('status').textContent.includes('RINGING')) {
+            autoStopTimeout = setTimeout(function() {
+                var status = document.getElementById('status');
+                if (status.textContent.indexOf('RINGING') !== -1) {
                     stopAlarm();
                     updateStatus('⏹️ Alarm stopped automatically (1 minute)', 'idle');
                     if (navigator.vibrate) navigator.vibrate(100);
                 }
                 autoStopTimeout = null;
-            }, 60000); // 60,000 ms = 1 minute
+            }, 60000);
         }
         
         function playAlarmSound() {
@@ -815,15 +818,16 @@
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
                 
-                let count = 0;
-                alarmInterval = setInterval(() => {
-                    if (!document.getElementById('status').textContent.includes('RINGING')) {
+                var count = 0;
+                alarmInterval = setInterval(function() {
+                    var status = document.getElementById('status');
+                    if (status.textContent.indexOf('RINGING') === -1) {
                         clearInterval(alarmInterval);
                         return;
                     }
                     
-                    const osc = audioContext.createOscillator();
-                    const gain = audioContext.createGain();
+                    var osc = audioContext.createOscillator();
+                    var gain = audioContext.createGain();
                     osc.connect(gain);
                     gain.connect(audioContext.destination);
                     
@@ -843,19 +847,20 @@
         }
         
         function addStopButton() {
-            let stopBtn = document.getElementById('stopAlarmBtn');
+            var stopBtn = document.getElementById('stopAlarmBtn');
             if (!stopBtn) {
                 stopBtn = document.createElement('button');
                 stopBtn.id = 'stopAlarmBtn';
                 stopBtn.className = 'btn btn-danger btn-block';
                 stopBtn.innerHTML = '🔕 STOP ALARM';
                 stopBtn.onclick = stopAlarm;
-                document.getElementById('app').insertBefore(stopBtn, document.querySelector('.alarm-list-header'));
+                var app = document.getElementById('app');
+                var header = document.querySelector('.alarm-list-header');
+                app.insertBefore(stopBtn, header);
             }
         }
         
         function stopAlarm() {
-            // Clear auto-stop timeout
             if (autoStopTimeout) {
                 clearTimeout(autoStopTimeout);
                 autoStopTimeout = null;
@@ -870,15 +875,17 @@
                 audioContext = null;
             }
             
-            const stopBtn = document.getElementById('stopAlarmBtn');
+            var stopBtn = document.getElementById('stopAlarmBtn');
             if (stopBtn) stopBtn.remove();
             
-            // Only update status if it's still ringing
-            if (document.getElementById('status').textContent.includes('RINGING')) {
+            var status = document.getElementById('status');
+            if (status.textContent.indexOf('RINGING') !== -1) {
                 updateStatus('⏹️ Alarm stopped', 'idle');
             }
             
-            alarms = alarms.filter(a => !a.triggered || a.id !== ringingAlarmId);
+            alarms = alarms.filter(function(a) {
+                return !a.triggered || a.id !== ringingAlarmId;
+            });
             saveAlarms();
             ringingAlarmId = null;
             if (navigator.vibrate) navigator.vibrate(100);
@@ -888,32 +895,41 @@
         // 4. UI UPDATES
         // ============================================================
         
-        function updateStatus(message, type = 'idle') {
-            const el = document.getElementById('status');
+        function updateStatus(message, type) {
+            type = type || 'idle';
+            var el = document.getElementById('status');
             el.textContent = message;
             el.className = 'status status-' + type;
         }
         
         function updateCountdowns() {
-            const now = new Date();
-            document.querySelectorAll('.countdown').forEach(el => {
-                const alarmId = el.dataset.alarmId;
-                const alarm = alarms.find(a => a.id === alarmId);
+            var now = new Date();
+            var countdowns = document.querySelectorAll('.countdown');
+            for (var i = 0; i < countdowns.length; i++) {
+                var el = countdowns[i];
+                var alarmId = el.getAttribute('data-alarm-id');
+                var alarm = null;
+                for (var j = 0; j < alarms.length; j++) {
+                    if (alarms[j].id === alarmId) {
+                        alarm = alarms[j];
+                        break;
+                    }
+                }
                 if (alarm && !alarm.triggered && !alarm.missed) {
-                    const diff = new Date(alarm.time) - now;
+                    var diff = new Date(alarm.time) - now;
                     if (diff > 0) {
-                        const mins = Math.floor(diff / 60000);
-                        const secs = Math.floor((diff % 60000) / 1000);
-                        el.textContent = `${mins}m ${secs}s`;
+                        var mins = Math.floor(diff / 60000);
+                        var secs = Math.floor((diff % 60000) / 1000);
+                        el.textContent = mins + 'm ' + secs + 's';
                     } else {
                         el.textContent = '⏰ Due!';
                     }
                 }
-            });
+            }
         }
         
         function displayAlarms() {
-            const list = document.getElementById('alarmList');
+            var list = document.getElementById('alarmList');
             document.getElementById('alarmCount').textContent = alarms.length;
             
             if (alarms.length === 0) {
@@ -921,39 +937,47 @@
                 return;
             }
             
-            const sorted = [...alarms].sort((a, b) => new Date(a.time) - new Date(b.time));
+            var sorted = alarms.slice().sort(function(a, b) {
+                return new Date(a.time) - new Date(b.time);
+            });
             
-            list.innerHTML = sorted.map(alarm => {
-                const time = new Date(alarm.time);
-                const isTriggered = alarm.triggered;
-                const isMissed = alarm.missed;
-                const isRinging = isTriggered && alarm.id === ringingAlarmId;
+            var html = '';
+            for (var i = 0; i < sorted.length; i++) {
+                var alarm = sorted[i];
+                var time = new Date(alarm.time);
+                var isTriggered = alarm.triggered;
+                var isMissed = alarm.missed;
+                var isRinging = isTriggered && alarm.id === ringingAlarmId;
                 
-                const timeStr = formatTime(time);
+                var timeStr = formatTime(time);
                 
-                let statusText = '';
-                let statusClass = '';
+                var statusText = '';
+                var statusClass = '';
                 if (isRinging) { statusText = '🔔 RINGING!'; statusClass = 'triggered'; }
                 else if (isTriggered) { statusText = '✅ Triggered'; statusClass = 'triggered'; }
                 else if (isMissed) { statusText = '❌ Missed'; statusClass = 'missed'; }
                 
-                return `
-                    <div class="alarm-item ${statusClass}">
-                        <div class="alarm-info">
-                            <span class="alarm-time">${timeStr}</span>
-                            <span class="alarm-detail">
-                                ${statusText}
-                                ${!isTriggered && !isMissed ? `<span class="countdown" data-alarm-id="${alarm.id}">...</span>` : ''}
-                            </span>
-                        </div>
-                        <div class="alarm-actions">
-                            ${isRinging ? `<button class="btn btn-sm btn-danger" onclick="stopAlarm()">🔕</button>` : ''}
-                            <button class="btn btn-sm btn-danger" onclick="deleteAlarm('${alarm.id}')">✕</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
+                var countdownHtml = '';
+                if (!isTriggered && !isMissed) {
+                    countdownHtml = '<span class="countdown" data-alarm-id="' + alarm.id + '">...</span>';
+                }
+                
+                var actionsHtml = '';
+                if (isRinging) {
+                    actionsHtml = '<button class="btn btn-sm btn-danger" onclick="stopAlarm()">🔕</button>';
+                }
+                actionsHtml += '<button class="btn btn-sm btn-danger" onclick="deleteAlarm(\'' + alarm.id + '\')">✕</button>';
+                
+                html += '<div class="alarm-item ' + statusClass + '">' +
+                    '<div class="alarm-info">' +
+                        '<span class="alarm-time">' + timeStr + '</span>' +
+                        '<span class="alarm-detail">' + statusText + countdownHtml + '</span>' +
+                    '</div>' +
+                    '<div class="alarm-actions">' + actionsHtml + '</div>' +
+                '</div>';
+            }
             
+            list.innerHTML = html;
             setTimeout(updateCountdowns, 100);
         }
         
@@ -968,19 +992,18 @@
         // ============================================================
         
         function updateClock() {
-            const now = new Date();
-            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
-            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            });
+            var now = new Date();
+            var hours = now.getHours();
+            var minutes = now.getMinutes();
+            var seconds = now.getSeconds();
+            hours = hours < 10 ? '0' + hours : hours;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+            document.getElementById('currentTime').textContent = hours + ':' + minutes + ':' + seconds;
+            
+            var days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            var months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            document.getElementById('currentDate').textContent = days[now.getDay()] + ', ' + months[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear();
         }
         setInterval(updateClock, 1000);
         updateClock();
@@ -992,13 +1015,13 @@
         function setupSync() {
             try {
                 syncChannel = new BroadcastChannel('alarm_sync');
-                syncChannel.onmessage = (event) => {
+                syncChannel.onmessage = function(event) {
                     if (event.data.type === 'sync' && event.data.deviceId !== deviceId) {
                         mergeAlarms(event.data.alarms);
                     }
                 };
                 
-                window.addEventListener('storage', (e) => {
+                window.addEventListener('storage', function(e) {
                     if (e.key === 'alarms' && e.newValue) {
                         try {
                             mergeAlarms(JSON.parse(e.newValue));
@@ -1013,11 +1036,15 @@
         }
         
         function mergeAlarms(remoteAlarms) {
-            let changed = false;
-            const localMap = new Map(alarms.map(a => [a.id, a]));
+            var changed = false;
+            var localMap = {};
+            for (var i = 0; i < alarms.length; i++) {
+                localMap[alarms[i].id] = alarms[i];
+            }
             
-            remoteAlarms.forEach(remote => {
-                const local = localMap.get(remote.id);
+            for (var j = 0; j < remoteAlarms.length; j++) {
+                var remote = remoteAlarms[j];
+                var local = localMap[remote.id];
                 if (!local) {
                     alarms.push(remote);
                     changed = true;
@@ -1031,7 +1058,7 @@
                     local.missed = true;
                     changed = true;
                 }
-            });
+            }
             
             if (changed) {
                 saveAlarms();
@@ -1054,10 +1081,12 @@
         }
         
         function updateDeviceCount() {
-            const devices = new Set();
-            alarms.forEach(a => devices.add(a.deviceId));
-            const count = Math.max(1, devices.size);
-            document.getElementById('deviceCount').textContent = `📱 ${count} device${count > 1 ? 's' : ''}`;
+            var devices = {};
+            for (var i = 0; i < alarms.length; i++) {
+                devices[alarms[i].deviceId] = true;
+            }
+            var count = Math.max(1, Object.keys(devices).length);
+            document.getElementById('deviceCount').textContent = '📱 ' + count + ' device' + (count > 1 ? 's' : '');
         }
         
         setInterval(syncAlarms, 30000);
@@ -1066,12 +1095,12 @@
         // 7. EDUCATIONAL SECTION TOGGLE
         // ============================================================
         
-        let eduOpen = true;
+        var eduOpen = true;
         
         function toggleEducation() {
             eduOpen = !eduOpen;
-            const content = document.getElementById('eduContent');
-            const toggle = document.getElementById('eduToggle');
+            var content = document.getElementById('eduContent');
+            var toggle = document.getElementById('eduToggle');
             
             if (eduOpen) {
                 content.classList.remove('hidden');
@@ -1088,37 +1117,38 @@
         // 8. PWA / SERVICE WORKER
         // ============================================================
         
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
+        var deferredPrompt;
+        window.addEventListener('beforeinstallprompt', function(e) {
             e.preventDefault();
             deferredPrompt = e;
             document.getElementById('installBadge').style.display = 'inline-block';
-            document.getElementById('installBadge').onclick = async () => {
+            document.getElementById('installBadge').onclick = function() {
                 if (deferredPrompt) {
                     deferredPrompt.prompt();
-                    const result = await deferredPrompt.userChoice;
-                    if (result.outcome === 'accepted') {
-                        document.getElementById('installBadge').style.display = 'none';
-                    }
-                    deferredPrompt = null;
+                    deferredPrompt.userChoice.then(function(result) {
+                        if (result.outcome === 'accepted') {
+                            document.getElementById('installBadge').style.display = 'none';
+                        }
+                        deferredPrompt = null;
+                    });
                 }
             };
         });
         
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
-                .then(reg => console.log('✅ SW registered'))
-                .catch(err => console.log('❌ SW registration failed:', err));
+                .then(function(reg) { console.log('✅ SW registered'); })
+                .catch(function(err) { console.log('❌ SW registration failed:', err); });
         }
         
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
         
-        async function requestWakeLock() {
+        function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
-                    await navigator.wakeLock.request('screen');
+                    navigator.wakeLock.request('screen');
                 }
             } catch (e) {}
         }
@@ -1130,10 +1160,10 @@
         
         function loadAlarms() {
             try {
-                const stored = localStorage.getItem('alarms');
+                var stored = localStorage.getItem('alarms');
                 alarms = stored ? JSON.parse(stored) : [];
-                const now = Date.now();
-                alarms = alarms.filter(a => {
+                var now = Date.now();
+                alarms = alarms.filter(function(a) {
                     if (a.triggered && (now - new Date(a.time).getTime() > 3600000)) return false;
                     if (a.missed && (now - new Date(a.time).getTime() > 3600000)) return false;
                     return true;
@@ -1154,7 +1184,7 @@
         console.log('🐦 Follow: https://x.com/mouseng20');
         console.log('⏱️ Alarm will auto-stop after 1 minute');
         
-        window.__alarm = { alarms, deviceId, stopAlarm, syncAlarms };
+        window.__alarm = { alarms: alarms, deviceId: deviceId, stopAlarm: stopAlarm, syncAlarms: syncAlarms };
     </script>
 </body>
 </html>
