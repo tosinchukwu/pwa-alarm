@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smart Alarm PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="theme-color" content="#4CAF50">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 30px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+        }
+        .badge {
+            background: #4CAF50;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .time-display {
+            text-align: center;
+            font-size: 48px;
+            font-weight: 300;
+            color: #333;
+            padding: 20px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .date-display {
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="datetime-local"] {
+            flex: 1;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        input[type="datetime-local"]:focus {
+            border-color: #667eea;
+        }
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn:active {
+            transform: scale(0.95);
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+        }
+        .btn-success {
+            background: #51cf66;
+            color: white;
+            box-shadow: 0 4px 15px rgba(81, 207, 102, 0.4);
+        }
+        .btn-block {
+            width: 100%;
+            justify-content: center;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 15px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        .status-idle {
+            background: #f1f3f5;
+            color: #868e96;
+        }
+        .status-active {
+            background: #d3f9d8;
+            color: #2b8a3e;
+        }
+        .status-ringing {
+            background: #ffe3e3;
+            color: #c92a2a;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        .alarm-list {
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .alarm-item {
+            background: #f8f9fa;
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+            border-left: 4px solid #667eea;
+        }
+        .alarm-item.triggered {
+            border-left-color: #ff6b6b;
+            background: #fff5f5;
+        }
+        .alarm-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .alarm-time {
+            font-weight: 600;
+            color: #333;
+        }
+        .alarm-detail {
+            font-size: 12px;
+            color: #868e96;
+        }
+        .alarm-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+            border-radius: 8px;
+        }
+        .empty-state {
+            text-align: center;
+            color: #adb5bd;
+            padding: 30px 0;
+            font-size: 14px;
+        }
+        .sync-status {
+            font-size: 12px;
+            color: #868e96;
+            text-align: center;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+        }
+        .sync-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot.online { background: #51cf66; }
+        .dot.offline { background: #ff6b6b; }
+        .dot.syncing { background: #fcc419; animation: spin 1s infinite; }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .countdown {
+            font-size: 14px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        /* Scrollbar styling */
+        .alarm-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .alarm-list::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+        /* Mobile optimizations */
+        @media (max-width: 480px) {
+            .container { padding: 20px; }
+            .time-display { font-size: 36px; }
+            .input-group { flex-direction: column; }
+            .btn { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏰ Alarm</h1>
+            <span class="badge" id="installBadge" style="display:none;">Install App</span>
+        </div>
+
+        <!-- Real-time clock -->
+        <div class="time-display" id="currentTime">00:00:00</div>
+        <div class="date-display" id="currentDate">Loading...</div>
+
+        <!-- Set alarm -->
+        <div class="input-group">
+            <input type="datetime-local" id="alarmTime">
+            <button class="btn btn-primary" onclick="setAlarm()">Set</button>
+        </div>
+
+        <!-- Status -->
+        <div class="status status-idle" id="status">⏳ No alarm set</div>
+
+        <!-- Sync status -->
+        <div class="sync-status">
+            <span class="dot online" id="syncDot"></span>
+            <span id="syncText">Online</span>
+            <span style="margin-left: 10px;">|</span>
+            <span id="deviceCount">📱 1 device</span>
+        </div>
+
+        <!-- Alarm list -->
+        <h3 style="margin: 20px 0 10px;">📋 Your Alarms</h3>
+        <div class="alarm-list" id="alarmList">
+            <div class="empty-state">No alarms set. Add one above!</div>
+        </div>
+
+        <!-- Hidden audio element for alarm sounds -->
+        <audio id="alarmSound" preload="auto">
+            <source src="data:audio/wav;base64,U3RlcmVv" type="audio/wav">
+        </audio>
+    </div>
+
+    <script>
+        // ============================================================
+        // 1. CORE ALARM ENGINE (works offline)
+        // ============================================================
+        
+        // Store alarms with sync support
+        let alarms = [];
+        let deviceId = localStorage.getItem('deviceId') || generateDeviceId();
+        let syncChannel = null;
+        let isSyncing = false;
+
+        function generateDeviceId() {
+            const id = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            localStorage.setItem('deviceId', id);
+            return id;
+        }
+
+        // Load alarms from localStorage
+        function loadAlarms() {
+            try {
+                const stored = localStorage.getItem('alarms');
+                alarms = stored ? JSON.parse(stored) : [];
+                // Filter out triggered alarms older than 1 hour
+                const now = Date.now();
+                alarms = alarms.filter(a => {
+                    if (a.triggered && (now - new Date(a.time).getTime() > 3600000)) {
+                        return false;
+                    }
+                    return true;
+                });
+                saveAlarms();
+            } catch (e) {
+                alarms = [];
+            }
+        }
+
+        function saveAlarms() {
+            localStorage.setItem('alarms', JSON.stringify(alarms));
+            displayAlarms();
+            // Trigger sync to other devices
+            syncAlarms();
+        }
+
+        // ============================================================
+        // 2. SET, DELETE, CHECK ALARMS
+        // ============================================================
+
+        function setAlarm() {
+            const input = document.getElementById('alarmTime');
+            if (!input.value) {
+                alert('Please select a time!');
+                return;
+            }
+
+            const dateTime = new Date(input.value);
+            const now = new Date();
+
+            if (dateTime <= now) {
+                alert('⏰ Please select a FUTURE time!');
+                return;
+            }
+
+            const alarm = {
+                id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+                time: dateTime.toISOString(),
+                triggered: false,
+                createdAt: now.toISOString(),
+                deviceId: deviceId,
+                label: dateTime.toLocaleString()
+            };
+
+            alarms.push(alarm);
+            saveAlarms();
+            updateStatus(`✅ Alarm set for ${dateTime.toLocaleString()}`, 'active');
+            input.value = '';
+
+            // Vibrate feedback on phone
+            if (navigator.vibrate) navigator.vibrate(50);
+        }
+
+        function deleteAlarm(id) {
+            alarms = alarms.filter(a => a.id !== id);
+            saveAlarms();
+            if (navigator.vibrate) navigator.vibrate(30);
+            
+            // Stop ringing if this alarm was ringing
+            const status = document.getElementById('status');
+            if (status.textContent.includes('🔔 RINGING')) {
+                stopAlarm();
+            }
+        }
+
+        function checkAlarms() {
+            const now = new Date();
+            let anyRinging = false;
+
+            alarms.forEach(alarm => {
+                const alarmTime = new Date(alarm.time);
+                if (alarmTime <= now && !alarm.triggered) {
+                    alarm.triggered = true;
+                    saveAlarms();
+                    triggerAlarm(alarm);
+                    anyRinging = true;
+                }
+            });
+
+            // Update countdowns
+            updateCountdowns();
+        }
+
+        // Check every second
+        setInterval(checkAlarms, 1000);
+
+        // ============================================================
+        // 3. TRIGGER ALARM (Sound, Notification, Vibration)
+        // ============================================================
+
+        let audioContext = null;
+        let alarmInterval = null;
+        let ringingAlarmId = null;
+
+        function triggerAlarm(alarm) {
+            ringingAlarmId = alarm.id;
+            const time = new Date(alarm.time);
+
+            // 1. Browser Notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('🔔 ALARM!', {
+                    body: `Time to wake up! (${time.toLocaleTimeString()})`,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>',
+                    tag: 'alarm',
+                    requireInteraction: true,
+                    silent: false
+                });
+            }
+
+            // 2. Sound - Web Audio API (no file needed)
+            playAlarmSound();
+
+            // 3. Vibration (mobile)
+            if (navigator.vibrate) {
+                navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
+            }
+
+            // 4. Update UI
+            updateStatus(`🔔 RINGING! ${time.toLocaleString()}`, 'ringing');
+
+            // 5. Add stop button if not exists
+            addStopButton();
+
+            // 6. Speak the time (optional)
+            if ('speechSynthesis' in window) {
+                const msg = new SpeechSynthesisUtterance(`Alarm! It's ${time.toLocaleTimeString()}`);
+                msg.rate = 0.9;
+                speechSynthesis.speak(msg);
+            }
+        }
+
+        function playAlarmSound() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                // Create oscillator for beep
+                let count = 0;
+                alarmInterval = setInterval(() => {
+                    if (!document.getElementById('status').textContent.includes('RINGING')) {
+                        clearInterval(alarmInterval);
+                        return;
+                    }
+
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+
+                    // Alternate frequencies for more annoying alarm
+                    osc.frequency.value = count % 2 === 0 ? 800 : 1000;
+                    osc.type = 'square';
+
+                    gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+                    osc.start();
+                    osc.stop(audioContext.currentTime + 0.3);
+                    count++;
+                }, 400);
+
+            } catch (e) {
+                console.log('Audio fallback');
+                // Fallback: Use oscillator via HTML5 audio if available
+                try {
+                    const audio = document.getElementById('alarmSound');
+                    if (audio) {
+                        audio.loop = true;
+                        audio.play().catch(() => {});
+                    }
+                } catch (err) {}
+            }
+        }
+
+        function addStopButton() {
+            const container = document.querySelector('.container');
+            let stopBtn = document.getElementById('stopAlarmBtn');
+            if (!stopBtn) {
+                stopBtn = document.createElement('button');
+                stopBtn.id = 'stopAlarmBtn';
+                stopBtn.className = 'btn btn-danger btn-block';
+                stopBtn.innerHTML = '🔕 STOP ALARM';
+                stopBtn.onclick = stopAlarm;
+                container.insertBefore(stopBtn, container.querySelector('.alarm-list'));
+            }
+        }
+
+        function stopAlarm() {
+            // Stop audio
+            if (alarmInterval) {
+                clearInterval(alarmInterval);
+                alarmInterval = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+
+            // Stop HTML5 audio
+            const audio = document.getElementById('alarmSound');
+            if (audio) {
+                audio.pause();
+                audio.currentTime = 0;
+                audio.loop = false;
+            }
+
+            // Remove stop button
+            const stopBtn = document.getElementById('stopAlarmBtn');
+            if (stopBtn) stopBtn.remove();
+
+            // Update status
+            updateStatus('⏹️ Alarm stopped', 'idle');
+
+            // Remove triggered alarms (clean up)
+            alarms = alarms.filter(a => !a.triggered || a.id !== ringingAlarmId);
+            saveAlarms();
+
+            ringingAlarmId = null;
+            if (navigator.vibrate) navigator.vibrate(100);
+        }
+
+        // ============================================================
+        // 4. UI UPDATES
+        // ============================================================
+
+        function updateStatus(message, type = 'idle') {
+            const el = document.getElementById('status');
+            el.textContent = message;
+            el.className = 'status status-' + type;
+        }
+
+        function updateCountdowns() {
+            const now = new Date();
+            document.querySelectorAll('.countdown').forEach(el => {
+                const alarmId = el.dataset.alarmId;
+                const alarm = alarms.find(a => a.id === alarmId);
+                if (alarm && !alarm.triggered) {
+                    const diff = new Date(alarm.time) - now;
+                    if (diff > 0) {
+                        const mins = Math.floor(diff / 60000);
+                        const secs = Math.floor((diff % 60000) / 1000);
+                        el.textContent = `${mins}m ${secs}s remaining`;
+                    } else {
+                        el.textContent = '⏰ Due!';
+                    }
+                }
+            });
+        }
+
+        function displayAlarms() {
+            const list = document.getElementById('alarmList');
+            if (alarms.length === 0) {
+                list.innerHTML = '<div class="empty-state">🎯 No alarms set. Add one above!</div>';
+                return;
+            }
+
+            // Sort by time (soonest first)
+            const sorted = [...alarms].sort((a, b) => new Date(a.time) - new Date(b.time));
+
+            list.innerHTML = sorted.map(alarm => {
+                const time = new Date(alarm.time);
+                const isTriggered = alarm.triggered;
+                const isRinging = isTriggered && alarm.id === ringingAlarmId;
+                
+                return `
+                    <div class="alarm-item ${isTriggered ? 'triggered' : ''}">
+                        <div class="alarm-info">
+                            <span class="alarm-time">${time.toLocaleString()}</span>
+                            <span class="alarm-detail">
+                                ${isTriggered ? '✅ Triggered' : ''}
+                                <span class="countdown" data-alarm-id="${alarm.id}">
+                                    ${isTriggered ? '' : '...'}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="alarm-actions">
+                            ${isRinging ? `<button class="btn btn-sm btn-danger" onclick="stopAlarm()">🔕</button>` : ''}
+                            <button class="btn btn-sm btn-danger" onclick="deleteAlarm('${alarm.id}')">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Update countdowns immediately
+            setTimeout(updateCountdowns, 100);
+        }
+
+        // Update clock every second
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ============================================================
+        // 5. CROSS-DEVICE SYNC (Broadcast Channel API)
+        // ============================================================
+
+        function setupSync() {
+            try {
+                // Use BroadcastChannel for same-browser tabs
+                syncChannel = new BroadcastChannel('alarm_sync');
+                
+                syncChannel.onmessage = (event) => {
+                    if (event.data.type === 'sync' && event.data.deviceId !== deviceId) {
+                        // Received alarms from another tab/device
+                        const remoteAlarms = event.data.alarms;
+                        mergeAlarms(remoteAlarms);
+                    }
+                };
+
+                // Also use localStorage event for cross-tab sync
+                window.addEventListener('storage', (e) => {
+                    if (e.key === 'alarms' && e.newValue) {
+                        try {
+                            const remote = JSON.parse(e.newValue);
+                            mergeAlarms(remote);
+                        } catch (err) {}
+                    }
+                });
+
+                updateDeviceCount();
+            } catch (e) {
+                console.log('BroadcastChannel not supported');
+            }
+        }
+
+        function mergeAlarms(remoteAlarms) {
+            // Merge: keep local if newer, or if not triggered
+            let changed = false;
+            const localMap = new Map(alarms.map(a => [a.id, a]));
+
+            remoteAlarms.forEach(remote => {
+                const local = localMap.get(remote.id);
+                if (!local) {
+                    // New alarm from remote
+                    alarms.push(remote);
+                    changed = true;
+                } else if (remote.triggered && !local.triggered) {
+                    // Remote triggered first
+                    local.triggered = true;
+                    changed = true;
+                    // Trigger locally too
+                    if (new Date(remote.time) <= new Date()) {
+                        triggerAlarm(remote);
+                    }
+                } else if (local.triggered && !remote.triggered) {
+                    // Keep local trigger
+                    remote.triggered = true;
+                    changed = true;
+                }
+            });
+
+            if (changed) {
+                saveAlarms();
+                displayAlarms();
+            }
+        }
+
+        function syncAlarms() {
+            if (isSyncing) return;
+            isSyncing = true;
+
+            try {
+                if (syncChannel) {
+                    syncChannel.postMessage({
+                        type: 'sync',
+                        deviceId: deviceId,
+                        alarms: alarms,
+                        timestamp: Date.now()
+                    });
+                }
+                updateDeviceCount();
+            } catch (e) {
+                console.log('Sync failed');
+            }
+
+            isSyncing = false;
+        }
+
+        function updateDeviceCount() {
+            // Estimate device count from localStorage (shared)
+            const devices = new Set();
+            alarms.forEach(a => devices.add(a.deviceId));
+            const count = Math.max(1, devices.size);
+            document.getElementById('deviceCount').textContent = `📱 ${count} device${count > 1 ? 's' : ''}`;
+            
+            // Update dot
+            const dot = document.getElementById('syncDot');
+            dot.className = 'dot online';
+            document.getElementById('syncText').textContent = 'Synced';
+        }
+
+        // Sync every 30 seconds
+        setInterval(syncAlarms, 30000);
+
+        // ============================================================
+        // 6. PWA INSTALL & BACKGROUND ALARMS
+        // ============================================================
+
+        // Install prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBadge').style.display = 'inline-block';
+            document.getElementById('installBadge').onclick = async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const result = await deferredPrompt.userChoice;
+                    if (result.outcome === 'accepted') {
+                        document.getElementById('installBadge').style.display = 'none';
+                    }
+                    deferredPrompt = null;
+                }
+            };
+        });
+
+        // Background sync (for when app is closed)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.log('SW registration failed:', err));
+        }
+
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+
+        // Wake lock to prevent screen sleep (mobile)
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    const wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake lock active');
+                    return wakeLock;
+                }
+            } catch (e) {
+                console.log('Wake lock not supported');
+            }
+        }
+        requestWakeLock();
+
+        // ============================================================
+        // 7. INITIALIZE
+        // ============================================================
+
+        loadAlarms();
+        setupSync();
+        displayAlarms();
+
+        // Check for alarms immediately
+        setTimeout(checkAlarms, 500);
+
+        console.log('🔔 Alarm PWA initialized on', deviceId);
+        console.log('📋 Alarms:', alarms.length);
+
+        // Expose for debugging
+        window.__alarmDebug = { alarms, deviceId, syncAlarms, stopAlarm };
+    </script>
+</body>
+</html>
