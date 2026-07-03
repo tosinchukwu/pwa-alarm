@@ -709,7 +709,7 @@
             
             alarms.push(alarm);
             saveAlarms();
-            updateStatus(`✅ Alarm set for ${dateTime.toLocaleString()}`, 'active');
+            updateStatus(`✅ Alarm set for ${formatTime(dateTime)}`, 'active');
             input.value = '';
             if (navigator.vibrate) navigator.vibrate(50);
         }
@@ -734,19 +734,16 @@
                 const alarmTime = new Date(alarm.time);
                 
                 if (alarmTime <= now && !alarm.triggered && !alarm.missed) {
-                    // Check if it's within 60 seconds of the alarm time (to allow ringing)
                     const diffMs = now - alarmTime;
                     if (diffMs <= 60000) {
-                        // Within 60 seconds - ring!
                         alarm.triggered = true;
                         saveAlarms();
                         triggerAlarm(alarm);
                         anyRinging = true;
                     } else {
-                        // More than 60 seconds late - missed
                         alarm.missed = true;
                         saveAlarms();
-                        updateStatus(`❌ Alarm missed! (${alarmTime.toLocaleString()})`, 'missed');
+                        updateStatus(`❌ Alarm missed! (${formatTime(alarmTime)})`, 'missed');
                         anyMissed = true;
                     }
                 }
@@ -766,21 +763,31 @@
             updateCountdowns();
         }
         
+        // Helper: Format time as "3:23 PM"
+        function formatTime(date) {
+            return date.toLocaleTimeString('en-US', {
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+        
         // Check every second
         setInterval(checkAlarms, 1000);
         
         // ============================================================
-        // 3. TRIGGER ALARM
+        // 3. TRIGGER ALARM (FIXED - Correct Time Format)
         // ============================================================
         
         function triggerAlarm(alarm) {
             ringingAlarmId = alarm.id;
             const time = new Date(alarm.time);
+            const timeStr = formatTime(time);
             
             // Notification
             if ('Notification' in window && Notification.permission === 'granted') {
                 new Notification('🔔 ALARM!', {
-                    body: `Time to wake up! (${time.toLocaleTimeString()})`,
+                    body: `Time to wake up! (${timeStr})`,
                     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>',
                     tag: 'alarm',
                     requireInteraction: true
@@ -796,12 +803,12 @@
             }
             
             // UI
-            updateStatus(`🔔 RINGING! ${time.toLocaleString()}`, 'ringing');
+            updateStatus(`🔔 RINGING! ${timeStr}`, 'ringing');
             addStopButton();
             
-            // Speak
+            // Speak - FIXED: now says "3:23 PM" not "15:23:00"
             if ('speechSynthesis' in window) {
-                const msg = new SpeechSynthesisUtterance(`Alarm! It's ${time.toLocaleTimeString()}`);
+                const msg = new SpeechSynthesisUtterance(`Alarm! It's ${timeStr}`);
                 msg.rate = 0.9;
                 speechSynthesis.speak(msg);
             }
@@ -864,200 +871,93 @@
             
             const stopBtn = document.getElementById('stopAlarmBtn');
             if (stopBtn) stopBtn.remove();
-// ============================================================
-// 3. TRIGGER ALARM (FIXED - Correct Time Format)
-// ============================================================
-
-function triggerAlarm(alarm) {
-    ringingAlarmId = alarm.id;
-    const time = new Date(alarm.time);
-    
-    // Format time correctly (e.g., "3:23 PM")
-    const timeStr = time.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-    
-    // Notification
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('🔔 ALARM!', {
-            body: `Time to wake up! (${timeStr})`,
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🔔</text></svg>',
-            tag: 'alarm',
-            requireInteraction: true
-        });
-    }
-    
-    // Sound
-    playAlarmSound();
-    
-    // Vibration
-    if (navigator.vibrate) {
-        navigator.vibrate([500, 200, 500, 200, 500, 200, 1000]);
-    }
-    
-    // UI
-    updateStatus(`🔔 RINGING! ${timeStr}`, 'ringing');
-    addStopButton();
-    
-    // Speak - FIXED: now says "3:23 PM" not "15:23:00"
-    if ('speechSynthesis' in window) {
-        const msg = new SpeechSynthesisUtterance(`Alarm! It's ${timeStr}`);
-        msg.rate = 0.9;
-        speechSynthesis.speak(msg);
-    }
-}
-
-function playAlarmSound() {
-    try {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            updateStatus('⏹️ Alarm stopped', 'idle');
+            
+            alarms = alarms.filter(a => !a.triggered || a.id !== ringingAlarmId);
+            saveAlarms();
+            ringingAlarmId = null;
+            if (navigator.vibrate) navigator.vibrate(100);
         }
         
-        let count = 0;
-        alarmInterval = setInterval(() => {
-            if (!document.getElementById('status').textContent.includes('RINGING')) {
-                clearInterval(alarmInterval);
+        // ============================================================
+        // 4. UI UPDATES
+        // ============================================================
+        
+        function updateStatus(message, type = 'idle') {
+            const el = document.getElementById('status');
+            el.textContent = message;
+            el.className = 'status status-' + type;
+        }
+        
+        function updateCountdowns() {
+            const now = new Date();
+            document.querySelectorAll('.countdown').forEach(el => {
+                const alarmId = el.dataset.alarmId;
+                const alarm = alarms.find(a => a.id === alarmId);
+                if (alarm && !alarm.triggered && !alarm.missed) {
+                    const diff = new Date(alarm.time) - now;
+                    if (diff > 0) {
+                        const mins = Math.floor(diff / 60000);
+                        const secs = Math.floor((diff % 60000) / 1000);
+                        el.textContent = `${mins}m ${secs}s`;
+                    } else {
+                        el.textContent = '⏰ Due!';
+                    }
+                }
+            });
+        }
+        
+        function displayAlarms() {
+            const list = document.getElementById('alarmList');
+            document.getElementById('alarmCount').textContent = alarms.length;
+            
+            if (alarms.length === 0) {
+                list.innerHTML = '<div class="empty-state">🎯 No alarms set. Add one above!</div>';
                 return;
             }
             
-            const osc = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            osc.connect(gain);
-            gain.connect(audioContext.destination);
+            const sorted = [...alarms].sort((a, b) => new Date(a.time) - new Date(b.time));
             
-            osc.frequency.value = count % 2 === 0 ? 800 : 1000;
-            osc.type = 'square';
+            list.innerHTML = sorted.map(alarm => {
+                const time = new Date(alarm.time);
+                const isTriggered = alarm.triggered;
+                const isMissed = alarm.missed;
+                const isRinging = isTriggered && alarm.id === ringingAlarmId;
+                
+                const timeStr = formatTime(time);
+                
+                let statusText = '';
+                let statusClass = '';
+                if (isRinging) { statusText = '🔔 RINGING!'; statusClass = 'triggered'; }
+                else if (isTriggered) { statusText = '✅ Triggered'; statusClass = 'triggered'; }
+                else if (isMissed) { statusText = '❌ Missed'; statusClass = 'missed'; }
+                
+                return `
+                    <div class="alarm-item ${statusClass}">
+                        <div class="alarm-info">
+                            <span class="alarm-time">${timeStr}</span>
+                            <span class="alarm-detail">
+                                ${statusText}
+                                ${!isTriggered && !isMissed ? `<span class="countdown" data-alarm-id="${alarm.id}">...</span>` : ''}
+                            </span>
+                        </div>
+                        <div class="alarm-actions">
+                            ${isRinging ? `<button class="btn btn-sm btn-danger" onclick="stopAlarm()">🔕</button>` : ''}
+                            <button class="btn btn-sm btn-danger" onclick="deleteAlarm('${alarm.id}')">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
             
-            gain.gain.setValueAtTime(0.3, audioContext.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-            
-            osc.start();
-            osc.stop(audioContext.currentTime + 0.3);
-            count++;
-        }, 400);
-    } catch (e) {
-        console.log('Audio fallback');
-    }
-}
-
-function addStopButton() {
-    let stopBtn = document.getElementById('stopAlarmBtn');
-    if (!stopBtn) {
-        stopBtn = document.createElement('button');
-        stopBtn.id = 'stopAlarmBtn';
-        stopBtn.className = 'btn btn-danger btn-block';
-        stopBtn.innerHTML = '🔕 STOP ALARM';
-        stopBtn.onclick = stopAlarm;
-        document.getElementById('app').insertBefore(stopBtn, document.querySelector('.alarm-list-header'));
-    }
-}
-
-function stopAlarm() {
-    if (alarmInterval) {
-        clearInterval(alarmInterval);
-        alarmInterval = null;
-    }
-    if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-    }
-    
-    const stopBtn = document.getElementById('stopAlarmBtn');
-    if (stopBtn) stopBtn.remove();
-    
-    updateStatus('⏹️ Alarm stopped', 'idle');
-    
-    alarms = alarms.filter(a => !a.triggered || a.id !== ringingAlarmId);
-    saveAlarms();
-    ringingAlarmId = null;
-    if (navigator.vibrate) navigator.vibrate(100);
-}
-
-// ============================================================
-// 4. UI UPDATES
-// ============================================================
-
-function updateStatus(message, type = 'idle') {
-    const el = document.getElementById('status');
-    el.textContent = message;
-    el.className = 'status status-' + type;
-}
-
-function updateCountdowns() {
-    const now = new Date();
-    document.querySelectorAll('.countdown').forEach(el => {
-        const alarmId = el.dataset.alarmId;
-        const alarm = alarms.find(a => a.id === alarmId);
-        if (alarm && !alarm.triggered && !alarm.missed) {
-            const diff = new Date(alarm.time) - now;
-            if (diff > 0) {
-                const mins = Math.floor(diff / 60000);
-                const secs = Math.floor((diff % 60000) / 1000);
-                el.textContent = `${mins}m ${secs}s`;
-            } else {
-                el.textContent = '⏰ Due!';
-            }
+            setTimeout(updateCountdowns, 100);
         }
-    });
-}
-
-function displayAlarms() {
-    const list = document.getElementById('alarmList');
-    document.getElementById('alarmCount').textContent = alarms.length;
-    
-    if (alarms.length === 0) {
-        list.innerHTML = '<div class="empty-state">🎯 No alarms set. Add one above!</div>';
-        return;
-    }
-    
-    const sorted = [...alarms].sort((a, b) => new Date(a.time) - new Date(b.time));
-    
-    list.innerHTML = sorted.map(alarm => {
-        const time = new Date(alarm.time);
-        const isTriggered = alarm.triggered;
-        const isMissed = alarm.missed;
-        const isRinging = isTriggered && alarm.id === ringingAlarmId;
         
-        // Format time for display
-        const timeStr = time.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-        
-        let statusText = '';
-        let statusClass = '';
-        if (isRinging) { statusText = '🔔 RINGING!'; statusClass = 'triggered'; }
-        else if (isTriggered) { statusText = '✅ Triggered'; statusClass = 'triggered'; }
-        else if (isMissed) { statusText = '❌ Missed'; statusClass = 'missed'; }
-        
-        return `
-            <div class="alarm-item ${statusClass}">
-                <div class="alarm-info">
-                    <span class="alarm-time">${timeStr}</span>
-                    <span class="alarm-detail">
-                        ${statusText}
-                        ${!isTriggered && !isMissed ? `<span class="countdown" data-alarm-id="${alarm.id}">...</span>` : ''}
-                    </span>
-                </div>
-                <div class="alarm-actions">
-                    ${isRinging ? `<button class="btn btn-sm btn-danger" onclick="stopAlarm()">🔕</button>` : ''}
-                    <button class="btn btn-sm btn-danger" onclick="deleteAlarm('${alarm.id}')">✕</button>
-                </div>
-            </div>
-        `;
-    }).join('');
-    
-    setTimeout(updateCountdowns, 100);
-}
-
-function saveAlarms() {
-    localStorage.setItem('alarms', JSON.stringify(alarms));
-    displayAlarms();
-    syncAlarms();
-}
+        function saveAlarms() {
+            localStorage.setItem('alarms', JSON.stringify(alarms));
+            displayAlarms();
+            syncAlarms();
+        }
         
         // ============================================================
         // 5. CLOCK
